@@ -1,4 +1,4 @@
-name: RetroVault CI
+name: RetroVault CI/CD
 
 on:
   push:
@@ -9,7 +9,8 @@ on:
       - main
 
 jobs:
-  test-and-build:
+  ci:
+    name: Run Tests
     runs-on: ubuntu-latest
 
     services:
@@ -49,7 +50,38 @@ jobs:
         run: |
           cd backend
           export PYTHONPATH=$PWD
-          pytest
+          pytest --junitxml=report.xml
+
+      - name: Upload test report
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: backend/report.xml
+
+  cd:
+    name: Build and Push Docker Image
+    needs: ci
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Build Docker image
-        run: docker build -t retrovault ./backend
+        run: |
+          IMAGE_NAME=ghcr.io/${{ github.repository }}/retrovault
+          docker build -t $IMAGE_NAME:latest ./backend
+          docker build -t $IMAGE_NAME:${{ github.sha }} ./backend
+
+      - name: Push Docker image
+        run: |
+          IMAGE_NAME=ghcr.io/${{ github.repository }}/retrovault
+          docker push $IMAGE_NAME:latest
+          docker push $IMAGE_NAME:${{ github.sha }}
