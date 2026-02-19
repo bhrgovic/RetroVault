@@ -1,0 +1,21 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: retro
+      POSTGRES_PASSWORD: retro
+      POSTGRES_DB: retrovault
+    ports:
+      - "5432:5432"
+
+  backend:
+    build: ./backend
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgresql://retro:retro@db:5432/retrovault
+      SECRET_KEY: supersecretkey
+    ports:
+      - "8000:8000"
