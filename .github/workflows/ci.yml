@@ -48,6 +48,7 @@ jobs:
       - name: Run tests
         run: |
           cd backend
+          export PYTHONPATH=$PWD
           pytest
 
       - name: Build Docker image
