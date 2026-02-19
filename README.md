@@ -1,1 +1,1 @@
-RetroVault is a self-hosted retro game management service.
+RetroVault is a containerized self-hosted retro game management service.
