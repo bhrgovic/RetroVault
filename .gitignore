@@ -7,6 +7,7 @@
 *.tmp
 *.swp
 .DS_Store
+/docs/*
 
 # --------------------
 # Python / Backend

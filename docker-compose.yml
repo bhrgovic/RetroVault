@@ -1,10 +1,14 @@
 services:
   db:
     image: postgres:15
+    container_name: retrovault-db
+    restart: always
     environment:
       POSTGRES_USER: retro
       POSTGRES_PASSWORD: retro
       POSTGRES_DB: retrovault
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
 
@@ -12,6 +16,8 @@ services:
     build: ./backend
     depends_on:
       - db
+    volumes:
+      - ./backend/uploads:/app/uploads
     environment:
       DATABASE_URL: postgresql://retro:retro@db:5432/retrovault
       SECRET_KEY: supersecretkey
@@ -36,3 +42,7 @@ services:
       - "5173:80"
     depends_on:
       - backend
+
+
+volumes:
+  postgres_data:
