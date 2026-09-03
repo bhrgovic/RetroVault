@@ -1,7 +1,9 @@
+import os
 from fastapi import FastAPI
 from contextlib import asynccontextmanager
 from prometheus_fastapi_instrumentator import Instrumentator
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from .database import Base, engine
 from .routes import users, games
 
@@ -11,6 +13,7 @@ origins = [
     "http://localhost:3000",
 ]
 
+UPLOAD_DIR = "uploads"
 
 
 @asynccontextmanager
@@ -31,6 +34,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+os.makedirs(UPLOAD_DIR, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 app.include_router(users.router)
 app.include_router(games.router)
