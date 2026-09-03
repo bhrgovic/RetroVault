@@ -10,7 +10,7 @@ class User(Base):
     username = Column(String, unique=True, index=True)
     email = Column(String, unique=True, index=True)
     hashed_password = Column(String)
-    
+
     games = relationship("Game", back_populates="owner")
 
 class Game(Base):
@@ -23,6 +23,7 @@ class Game(Base):
     genre = Column(String, nullable=False)
 
     rom_path = Column(String, nullable=True)
+    art_path = Column(String, nullable=True)
 
     owner_id = Column(Integer, ForeignKey("users.id"))
 

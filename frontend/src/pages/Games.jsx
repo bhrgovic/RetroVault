@@ -29,9 +29,20 @@ function Games({ token }) {
                         key={g.id}
                         className="gameCard"
                         onClick={() => navigate(`/games/${g.id}`)}>
-                        <h3>{g.title}</h3>
-                        <p>{g.platform}</p>
-                        <p>{g.year} • {g.genre}</p>
+
+                        <div className="gameCardArt">
+                            {g.art_path ? (
+                                <img src={`${API_URL}/${g.art_path}`} alt={`${g.title} cover art`} />
+                            ) : (
+                                <span className="artPlaceholder">No cover art</span>
+                            )}
+                        </div>
+
+                        <div className="gameCardBody">
+                            <h3>{g.title}</h3>
+                            <p>{g.platform}</p>
+                            <p>{g.year} • {g.genre}</p>
+                        </div>
                     </div>
                 ))}
             </div>

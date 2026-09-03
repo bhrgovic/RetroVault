@@ -14,19 +14,21 @@ function GameDetail({ token }) {
     const [year, setYear] = useState("");
     const [genre, setGenre] = useState("");
 
+    const [artFile, setArtFile] = useState(null);
+    const [saveFile, setSaveFile] = useState(null);
+    const [error, setError] = useState("");
+    const [version, setVersion] = useState(0);
+
+    const authHeader = { Authorization: `Bearer ${token}` };
+
     const fetchGame = async () => {
         try {
-            const res = await fetch(`${API_URL}/games/${id}`, {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                },
-            });
+            const res = await fetch(`${API_URL}/games/${id}`, { headers: authHeader });
 
             if (!res.ok) throw new Error("Failed to fetch game");
 
             const data = await res.json();
 
-            // Ensure saves is always an array
             const safeGame = {
                 ...data,
                 saves: data.saves || [],
@@ -38,7 +40,7 @@ function GameDetail({ token }) {
             setYear(safeGame.year);
             setGenre(safeGame.genre);
         } catch (err) {
-            console.error(err);
+            setError(err.message);
         }
     };
 
@@ -47,12 +49,12 @@ function GameDetail({ token }) {
             method: "PUT",
             headers: {
                 "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
+                ...authHeader,
             },
             body: JSON.stringify({
                 title,
                 platform,
-                year,
+                year: Number(year),
                 genre,
             }),
         });
@@ -60,12 +62,47 @@ function GameDetail({ token }) {
         navigate("/games");
     };
 
+    const uploadFiles = async () => {
+        if (!artFile && !saveFile) return;
+
+        setError("");
+
+        const formData = new FormData();
+        if (artFile) formData.append("art", artFile);
+        if (saveFile) formData.append("save", saveFile);
+
+        const res = await fetch(`${API_URL}/games/${id}/upload`, {
+            method: "POST",
+            headers: authHeader,
+            body: formData,
+        });
+
+        if (!res.ok) {
+            const detail = await res.json().catch(() => ({}));
+            setError(detail.detail || "Upload failed");
+            return;
+        }
+
+        setArtFile(null);
+        setSaveFile(null);
+        setVersion(version + 1);
+        fetchGame();
+    };
+
+    const removeArt = async () => {
+        await fetch(`${API_URL}/games/${id}/art`, {
+            method: "DELETE",
+            headers: authHeader,
+        });
+
+        setVersion(version + 1);
+        fetchGame();
+    };
+
     const deleteSave = async (saveId) => {
         await fetch(`${API_URL}/games/saves/${saveId}`, {
             method: "DELETE",
-            headers: {
-                Authorization: `Bearer ${token}`,
-            },
+            headers: authHeader,
         });
 
         fetchGame();
@@ -104,6 +141,45 @@ function GameDetail({ token }) {
                 />
 
                 <button onClick={updateGame}>Save Changes</button>
+            </div>
+
+            <div className="formCard">
+                <h3>Cover Art</h3>
+
+                {game.art_path ? (
+                    <img
+                        className="artPreview"
+                        src={`${API_URL}/${game.art_path}?v=${version}`}
+                        alt={`${game.title} cover art`}
+                    />
+                ) : (
+                    <p>No cover art uploaded yet.</p>
+                )}
+
+                <label className="fileLabel">Upload or replace cover art</label>
+                <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(e) => setArtFile(e.target.files[0])}
+                />
+
+                <label className="fileLabel">Upload a save file</label>
+                <input
+                    type="file"
+                    onChange={(e) => setSaveFile(e.target.files[0])}
+                />
+
+                {error && <p className="formError">{error}</p>}
+
+                <button onClick={uploadFiles} disabled={!artFile && !saveFile}>
+                    Upload
+                </button>
+
+                {game.art_path && (
+                    <button className="dangerButton" onClick={removeArt}>
+                        Remove Cover Art
+                    </button>
+                )}
             </div>
 
             <div className="formCard">

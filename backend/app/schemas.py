@@ -46,7 +46,7 @@ class GameOut(BaseModel):
     year: int
     genre: str
     rom_path: Optional[str] = None
+    art_path: Optional[str] = None
     saves: List[SaveOut] = []
 
     model_config = ConfigDict(from_attributes=True)
-
