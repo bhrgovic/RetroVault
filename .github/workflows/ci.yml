@@ -8,60 +8,124 @@ on:
     branches:
       - main
 
-jobs:
-  ci:
-    name: Run Tests
-    runs-on: ubuntu-latest
+env:
+  REGISTRY: ghcr.io
+  POSTGRES_USER: retro
+  POSTGRES_PASSWORD: retro
+  POSTGRES_DB: retrovault
 
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_USER: retro
-          POSTGRES_PASSWORD: retro
-          POSTGRES_DB: retrovault
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd="pg_isready -U retro"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=5
+jobs:
+  backend-tests:
+    name: Backend tests
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
 
     env:
-      DATABASE_URL: postgresql://retro:retro@localhost:5432/retrovault
-      SECRET_KEY: supersecretkey
+      DATABASE_URL: postgresql://retro:retro@localhost:5433/retrovault
+      SECRET_KEY: ${{ secrets.SECRET_KEY || 'ci-testing-key' }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Start PostgreSQL
+        run: |
+          docker rm -f retrovault-ci-db || true
+          docker run -d --name retrovault-ci-db \
+            -e POSTGRES_USER=$POSTGRES_USER \
+            -e POSTGRES_PASSWORD=$POSTGRES_PASSWORD \
+            -e POSTGRES_DB=$POSTGRES_DB \
+            -p 5433:5432 \
+            postgres:15
+
+      - name: Wait for PostgreSQL
+        run: |
+          for i in $(seq 1 30); do
+            if docker exec retrovault-ci-db pg_isready -U $POSTGRES_USER -q; then
+              echo "PostgreSQL accepted a connection after ${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "PostgreSQL did not become ready in 30s"
+          docker logs retrovault-ci-db
+          exit 1
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
 
       - name: Install dependencies
-        run: |
-          cd backend
-          pip install -r requirements.txt
+        run: pip install -r backend/requirements.txt
 
       - name: Run tests
+        working-directory: backend
         run: |
-          cd backend
           export PYTHONPATH=$PWD
-          pytest --junitxml=report.xml
+          pytest -v --junitxml=report.xml
 
       - name: Upload test report
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-report
+          name: backend-test-report
           path: backend/report.xml
 
-  cd:
-    name: Build and Push Docker Image
-    needs: ci
-    runs-on: ubuntu-latest
+      - name: Stop PostgreSQL
+        if: always()
+        run: docker rm -f retrovault-ci-db || true
+
+  frontend-tests:
+    name: Frontend build and tests
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
+
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Run component tests
+        run: npm run test -- --run --reporter=junit --outputFile=vitest-report.xml
+
+      - name: Build
+        run: npm run build
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-test-report
+          path: frontend/vitest-report.xml
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend/dist
+
+  publish:
+    name: Build and push images
+    needs: [backend-tests, frontend-tests]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ${{ vars.RUNNER_LABEL || 'ubuntu-latest' }}
 
     permissions:
       contents: read
@@ -72,19 +136,83 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
 
-      - name: Set image name
+      - name: Set image names
         run: |
-          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
-          echo "IMAGE_NAME=ghcr.io/$REPO/retrovault" >> $GITHUB_ENV
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "BACKEND_IMAGE=$REGISTRY/$OWNER/retrovault-backend" >> $GITHUB_ENV
+          echo "FRONTEND_IMAGE=$REGISTRY/$OWNER/retrovault-frontend" >> $GITHUB_ENV
 
-      - name: Build Docker image
+      - name: Build and push backend image
         run: |
-          docker build -t $IMAGE_NAME:latest ./backend
-          docker build -t $IMAGE_NAME:${{ github.sha }} ./backend
+          docker build -t $BACKEND_IMAGE:latest -t $BACKEND_IMAGE:${{ github.sha }} ./backend
+          docker push $BACKEND_IMAGE:latest
+          docker push $BACKEND_IMAGE:${{ github.sha }}
 
-      - name: Push Docker image
+      - name: Build and push frontend image
         run: |
-          docker push $IMAGE_NAME:latest
-          docker push $IMAGE_NAME:${{ github.sha }}
+          docker build -t $FRONTEND_IMAGE:latest -t $FRONTEND_IMAGE:${{ github.sha }} ./frontend
+          docker push $FRONTEND_IMAGE:latest
+          docker push $FRONTEND_IMAGE:${{ github.sha }}
+
+      - name: Write image manifest
+        run: |
+          {
+            echo "commit=${{ github.sha }}"
+            echo "backend=$BACKEND_IMAGE:${{ github.sha }}"
+            echo "frontend=$FRONTEND_IMAGE:${{ github.sha }}"
+          } > images.txt
+
+      - name: Upload image manifest
+        uses: actions/upload-artifact@v4
+        with:
+          name: published-images
+          path: images.txt
+
+  deploy:
+    name: Deploy to prototype environment
+    needs: publish
+    if: vars.SELF_HOSTED_RUNNER == 'true'
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
+
+      - name: Pull and start the stack
+        env:
+          SECRET_KEY: ${{ secrets.SECRET_KEY || 'prototype-key' }}
+        run: |
+          docker compose -f docker-compose.prod.yml pull
+          docker compose -f docker-compose.prod.yml up -d
+
+      - name: Health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/metrics > /dev/null; then
+              echo "Backend healthy after ${i}s"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Backend did not become healthy in 60s"
+          docker compose -f docker-compose.prod.yml logs --no-color > deploy.log
+          exit 1
+
+      - name: Collect deployment log
+        if: always()
+        run: docker compose -f docker-compose.prod.yml logs --no-color > deploy.log
+
+      - name: Upload deployment log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deploy-log
+          path: deploy.log

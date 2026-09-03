@@ -1,0 +1,6 @@
+.git/
+.github/
+docs/
+*.md
+backend/.venv/
+frontend/node_modules/
