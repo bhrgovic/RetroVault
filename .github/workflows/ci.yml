@@ -103,7 +103,7 @@ jobs:
         run: npm run lint
 
       - name: Run component tests
-        run: npm run test -- --run --reporter=junit --outputFile=vitest-report.xml
+        run: npm run test -- --run
 
       - name: Build
         run: npm run build
