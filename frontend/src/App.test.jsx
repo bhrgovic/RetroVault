@@ -1,21 +1,30 @@
 import { render, screen } from "@testing-library/react";
+import { describe, test, expect } from "vitest";
 import App from "./App";
-import {describe, test, expect} from "vitest"
-import "@testing-library/jest-dom/vitest";
 
 describe("RetroVault UI", () => {
-  test("renders login heading", () => {
+  test("renders the login heading", () => {
+    render(<App />);
+    expect(screen.getByRole("heading", { name: /login/i })).toBeInTheDocument();
+  });
+
+  test("renders the login button", () => {
     render(<App />);
     expect(screen.getByRole("button", { name: /login/i })).toBeInTheDocument();
   });
 
-  test("renders login button", () => {
+  test("renders a link to the register page", () => {
     render(<App />);
-    expect(screen.getAllByRole("button", { name: /login/i }).length).toBeGreaterThanOrEqual(1);
+
+    const registerLink = screen.getByRole("link", { name: /register/i });
+
+    expect(registerLink).toBeInTheDocument();
+    expect(registerLink).toHaveAttribute("href", "/register");
   });
 
-  test("renders register navigation button", () => {
+  test("redirects an unknown route to the login page", () => {
+    window.history.pushState({}, "", "/nonexistent");
     render(<App />);
-    expect(screen.getAllByRole("button", { name: /register/i}).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("button", { name: /login/i })).toBeInTheDocument();
   });
 });

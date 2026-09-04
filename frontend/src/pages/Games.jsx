@@ -7,17 +7,24 @@ function Games({ token }) {
     const [games, setGames] = useState([]);
     const navigate = useNavigate();
 
-    const fetchGames = async () => {
-        const res = await fetch(`${API_URL}/games/`, {
-            headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await res.json();
-        setGames(data);
-    };
-
     useEffect(() => {
-        fetchGames();
-    }, []);
+        let active = true;
+
+        const loadGames = async () => {
+            const res = await fetch(`${API_URL}/games/`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+            const data = await res.json();
+
+            if (active) setGames(data);
+        };
+
+        loadGames();
+
+        return () => {
+            active = false;
+        };
+    }, [token]);
 
     return (
         <div className="content">

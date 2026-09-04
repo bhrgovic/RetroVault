@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -19,9 +19,9 @@ function GameDetail({ token }) {
     const [error, setError] = useState("");
     const [version, setVersion] = useState(0);
 
-    const authHeader = { Authorization: `Bearer ${token}` };
+    const authHeader = useMemo(() => ({ Authorization: `Bearer ${token}` }), [token]);
 
-    const fetchGame = async () => {
+    const fetchGame = useCallback(async () => {
         try {
             const res = await fetch(`${API_URL}/games/${id}`, { headers: authHeader });
 
@@ -42,7 +42,7 @@ function GameDetail({ token }) {
         } catch (err) {
             setError(err.message);
         }
-    };
+    }, [id, authHeader]);
 
     const updateGame = async () => {
         await fetch(`${API_URL}/games/${id}`, {
@@ -110,7 +110,7 @@ function GameDetail({ token }) {
 
     useEffect(() => {
         fetchGame();
-    }, [id]);
+    }, [fetchGame]);
 
     if (!game) return <div className="content">Loading...</div>;
 
