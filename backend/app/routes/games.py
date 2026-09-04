@@ -5,6 +5,7 @@ import shutil,os
 from ..models import Game,User,SaveFile
 from ..schemas import *
 from ..deps import get_db, get_current_user
+from ..metrics import games_created, games_deleted, uploads, upload_rejections
 
 
 router = APIRouter(prefix="/games", tags=["Games"])
@@ -36,6 +37,9 @@ def create_game(game: GameCreate,
     db.add(db_game)
     db.commit()
     db.refresh(db_game)
+
+    games_created.inc()
+
     return db_game
 
 
@@ -65,6 +69,8 @@ def delete_game(game_id: int,
             remove_file(save.file_path)
         db.delete(game)
         db.commit()
+
+        games_deleted.inc()
 
     return {"message": "Deleted"}
 
@@ -122,15 +128,18 @@ def upload_files(
     if rom:
         remove_file(game.rom_path)
         game.rom_path = save_upload(rom, f"{game_id}_rom_{rom.filename}")
+        uploads.labels(kind="rom").inc()
 
     if save:
         path = save_upload(save, f"{game_id}_save_{save.filename}")
         db.add(SaveFile(file_path=path, game_id=game.id))
+        uploads.labels(kind="save").inc()
 
     if art:
         extension = os.path.splitext(art.filename)[1].lower()
 
         if extension not in ALLOWED_ART_EXTENSIONS:
+            upload_rejections.labels(reason="unsupported_format").inc()
             raise HTTPException(
                 status_code=400,
                 detail=f"Unsupported art format '{extension}'. Allowed: {', '.join(sorted(ALLOWED_ART_EXTENSIONS))}"
@@ -141,6 +150,7 @@ def upload_files(
         art.file.seek(0)
 
         if size > MAX_ART_BYTES:
+            upload_rejections.labels(reason="too_large").inc()
             raise HTTPException(
                 status_code=400,
                 detail=f"Art file is too large ({size} bytes). Maximum is {MAX_ART_BYTES} bytes."
@@ -148,6 +158,7 @@ def upload_files(
 
         remove_file(game.art_path)
         game.art_path = save_upload(art, f"{game_id}_art{extension}")
+        uploads.labels(kind="art").inc()
 
     db.commit()
     db.refresh(game)

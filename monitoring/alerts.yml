@@ -1,0 +1,29 @@
+groups:
+  - name: retrovault
+    rules:
+      - alert: BackendDown
+        expr: up{job="retrovault"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "RetroVault backend is not responding to scrapes"
+          description: "Prometheus has been unable to scrape the backend for more than a minute."
+
+      - alert: HighServerErrorRate
+        expr: sum(rate(http_requests_total{status="5xx"}[5m])) > 0.2
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backend is returning server errors"
+          description: "More than 0.2 server errors per second over the last 5 minutes."
+
+      - alert: SlowResponses
+        expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket[5m]))) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "95th percentile response time is above one second"
+          description: "Sustained slow responses for more than five minutes."

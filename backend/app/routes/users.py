@@ -5,6 +5,7 @@ from .. import models, schemas
 from ..database import SessionLocal
 from ..auth import hash_password, verify_password, create_access_token
 from ..deps import get_db
+from ..metrics import users_registered, logins
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -22,6 +23,9 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
+
+    users_registered.inc()
+
     return db_user
 
 
@@ -31,7 +35,11 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(),
 
     user = db.query(models.User).filter(models.User.username == form_data.username).first()
     if not user or not verify_password(form_data.password, user.hashed_password):
+        logins.labels(result="failure").inc()
         raise HTTPException(status_code=400, detail="Invalid credentials")
 
     token = create_access_token({"sub": str(user.id)})
+
+    logins.labels(result="success").inc()
+
     return {"access_token": token, "token_type": "bearer"}
