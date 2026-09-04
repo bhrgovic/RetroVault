@@ -43,8 +43,11 @@ services:
     image: prom/prometheus
     container_name: retrovault-prometheus
     restart: always
+    depends_on:
+      - backend
     volumes:
       - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml
       - prometheus_data:/prometheus
     ports:
       - "9090:9090"
@@ -55,7 +58,13 @@ services:
     restart: always
     depends_on:
       - prometheus
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_DEFAULT_THEME: dark
     volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning
+      - ./monitoring/grafana/dashboards:/etc/grafana/dashboards
       - grafana_data:/var/lib/grafana
     ports:
       - "3001:3000"
