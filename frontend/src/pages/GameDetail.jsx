@@ -3,6 +3,14 @@ import { useParams, useNavigate } from "react-router-dom";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
+function fileName(path, marker) {
+    const base = (path || "").split("/").pop();
+    const token = `_${marker}_`;
+    const index = base.indexOf(token);
+
+    return index === -1 ? base : base.slice(index + token.length);
+}
+
 function GameDetail({ token }) {
     const { id } = useParams();
     const navigate = useNavigate();
@@ -16,6 +24,7 @@ function GameDetail({ token }) {
 
     const [artFile, setArtFile] = useState(null);
     const [saveFile, setSaveFile] = useState(null);
+    const [romFile, setRomFile] = useState(null);
     const [error, setError] = useState("");
     const [version, setVersion] = useState(0);
 
@@ -44,6 +53,30 @@ function GameDetail({ token }) {
         }
     }, [id, authHeader]);
 
+    const downloadFile = async (url, suggestedName) => {
+        setError("");
+
+        const res = await fetch(url, { headers: authHeader });
+
+        if (!res.ok) {
+            const detail = await res.json().catch(() => ({}));
+            setError(detail.detail || "Download failed");
+            return;
+        }
+
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = suggestedName;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+
+        URL.revokeObjectURL(objectUrl);
+    };
+
     const updateGame = async () => {
         await fetch(`${API_URL}/games/${id}`, {
             method: "PUT",
@@ -63,13 +96,14 @@ function GameDetail({ token }) {
     };
 
     const uploadFiles = async () => {
-        if (!artFile && !saveFile) return;
+        if (!artFile && !saveFile && !romFile) return;
 
         setError("");
 
         const formData = new FormData();
         if (artFile) formData.append("art", artFile);
         if (saveFile) formData.append("save", saveFile);
+        if (romFile) formData.append("rom", romFile);
 
         const res = await fetch(`${API_URL}/games/${id}/upload`, {
             method: "POST",
@@ -85,6 +119,7 @@ function GameDetail({ token }) {
 
         setArtFile(null);
         setSaveFile(null);
+        setRomFile(null);
         setVersion(version + 1);
         fetchGame();
     };
@@ -144,6 +179,68 @@ function GameDetail({ token }) {
             </div>
 
             <div className="formCard">
+                <h3>ROM</h3>
+
+                {game.rom_path ? (
+                    <div className="fileRow">
+                        <span className="fileName">{fileName(game.rom_path, "rom")}</span>
+                        <button
+                            className="smallButton"
+                            onClick={() =>
+                                downloadFile(
+                                    `${API_URL}/games/${game.id}/rom`,
+                                    fileName(game.rom_path, "rom")
+                                )
+                            }
+                        >
+                            Download
+                        </button>
+                    </div>
+                ) : (
+                    <p>No ROM uploaded yet.</p>
+                )}
+            </div>
+
+            <div className="formCard">
+                <h3>Save Files</h3>
+
+                {game.saves.length === 0 ? (
+                    <p>No saves uploaded yet.</p>
+                ) : (
+                    <ul className="fileList">
+                        {game.saves.map((save) => (
+                            <li key={save.id} className="fileRow">
+                                <span className="fileName">
+                                    {fileName(save.file_path, "save")}
+                                </span>
+
+                                <span className="fileActions">
+                                    <button
+                                        className="smallButton"
+                                        onClick={() =>
+                                            downloadFile(
+                                                `${API_URL}/games/saves/${save.id}/download`,
+                                                fileName(save.file_path, "save")
+                                            )
+                                        }
+                                    >
+                                        Download
+                                    </button>
+
+                                    <button
+                                        className="smallButton dangerButton"
+                                        onClick={() => deleteSave(save.id)}
+                                    >
+                                        Delete
+                                    </button>
+                                </span>
+                            </li>
+                        ))}
+                    </ul>
+                )}
+            </div>
+
+            <div className="formCard">
                 <h3>Cover Art</h3>
 
                 {game.art_path ? (
@@ -156,25 +253,6 @@ function GameDetail({ token }) {
                     <p>No cover art uploaded yet.</p>
                 )}
 
-                <label className="fileLabel">Upload or replace cover art</label>
-                <input
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif"
-                    onChange={(e) => setArtFile(e.target.files[0])}
-                />
-
-                <label className="fileLabel">Upload a save file</label>
-                <input
-                    type="file"
-                    onChange={(e) => setSaveFile(e.target.files[0])}
-                />
-
-                {error && <p className="formError">{error}</p>}
-
-                <button onClick={uploadFiles} disabled={!artFile && !saveFile}>
-                    Upload
-                </button>
-
                 {game.art_path && (
                     <button className="dangerButton" onClick={removeArt}>
                         Remove Cover Art
@@ -183,25 +261,26 @@ function GameDetail({ token }) {
             </div>
 
             <div className="formCard">
-                <h3>Save Files</h3>
+                <h3>Upload Files</h3>
 
-                {game.saves.length === 0 ? (
-                    <p>No saves uploaded yet.</p>
-                ) : (
-                    <ul>
-                        {game.saves.map((save) => (
-                            <li key={save.id}>
-                                {save.file_path}
-                                <button
-                                    onClick={() => deleteSave(save.id)}
-                                    style={{ marginLeft: "10px" }}
-                                >
-                                    Delete
-                                </button>
-                            </li>
-                        ))}
-                    </ul>
-                )}
+                <label className="fileLabel">ROM file</label>
+                <input type="file" onChange={(e) => setRomFile(e.target.files[0])} />
+
+                <label className="fileLabel">Save file</label>
+                <input type="file" onChange={(e) => setSaveFile(e.target.files[0])} />
+
+                <label className="fileLabel">Cover art</label>
+                <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    onChange={(e) => setArtFile(e.target.files[0])}
+                />
+
+                {error && <p className="formError">{error}</p>}
+
+                <button onClick={uploadFiles} disabled={!artFile && !saveFile && !romFile}>
+                    Upload
+                </button>
             </div>
         </div>
     );

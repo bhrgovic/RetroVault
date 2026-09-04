@@ -1,11 +1,12 @@
 from fastapi import APIRouter, Depends,UploadFile,File,HTTPException
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from typing import List
 import shutil,os
 from ..models import Game,User,SaveFile
 from ..schemas import *
 from ..deps import get_db, get_current_user
-from ..metrics import games_created, games_deleted, uploads, upload_rejections
+from ..metrics import games_created, games_deleted, uploads, upload_rejections, downloads
 
 
 router = APIRouter(prefix="/games", tags=["Games"])
@@ -21,6 +22,29 @@ def save_upload(upload: UploadFile, filename: str) -> str:
     with open(path, "wb") as buffer:
         shutil.copyfileobj(upload.file, buffer)
     return path
+
+
+def original_name(path, marker):
+    base = os.path.basename(path or "")
+    token = f"_{marker}_"
+    index = base.find(token)
+
+    if index == -1:
+        return base
+
+    return base[index + len(token):]
+
+
+def owned_game(game_id, db, user):
+    game = db.query(Game).filter(
+        Game.id == game_id,
+        Game.owner_id == user.id
+    ).first()
+
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    return game
 
 
 def remove_file(path: str):
@@ -209,3 +233,52 @@ def delete_save(
     db.commit()
 
     return {"message": "Save deleted"}
+
+
+@router.get("/{game_id}/rom")
+def download_rom(
+    game_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    game = owned_game(game_id, db, current_user)
+
+    if not game.rom_path:
+        raise HTTPException(status_code=404, detail="This game has no ROM uploaded")
+
+    if not os.path.exists(game.rom_path):
+        raise HTTPException(status_code=410, detail="The ROM is recorded but missing from storage")
+
+    downloads.labels(kind="rom").inc()
+
+    return FileResponse(
+        game.rom_path,
+        media_type="application/octet-stream",
+        filename=original_name(game.rom_path, "rom"),
+    )
+
+
+@router.get("/saves/{save_id}/download")
+def download_save(
+    save_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    save = db.query(SaveFile).join(Game).filter(
+        SaveFile.id == save_id,
+        Game.owner_id == current_user.id
+    ).first()
+
+    if not save:
+        raise HTTPException(status_code=404, detail="Save not found")
+
+    if not os.path.exists(save.file_path):
+        raise HTTPException(status_code=410, detail="The save is recorded but missing from storage")
+
+    downloads.labels(kind="save").inc()
+
+    return FileResponse(
+        save.file_path,
+        media_type="application/octet-stream",
+        filename=original_name(save.file_path, "save"),
+    )
