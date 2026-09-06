@@ -248,6 +248,11 @@ jobs:
 
           echo "Wrote credentials for $REGISTRY to a job scoped Docker config"
 
+      - name: Free the ports used by the prototype environment
+        run: |
+          docker compose -f docker-compose.yml down --remove-orphans || true
+          docker compose -f docker-compose.prod.yml down --remove-orphans || true
+
       - name: Pull and start the stack
         run: |
           docker compose -f docker-compose.prod.yml pull
