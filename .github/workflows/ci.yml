@@ -134,12 +134,17 @@ jobs:
       contents: read
       packages: write
 
+    env:
+      DOCKER_CONFIG: ${{ runner.temp }}/docker-config
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
+        run: |
+          mkdir -p "$DOCKER_CONFIG"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
 
       - name: Set image names
         run: |
@@ -173,11 +178,18 @@ jobs:
           name: published-images
           path: images.txt
 
+      - name: Log out of GHCR
+        if: always()
+        run: rm -rf "$DOCKER_CONFIG"
+
   deploy:
     name: Deploy to prototype environment
     needs: publish
     if: vars.SELF_HOSTED_RUNNER == 'true'
     runs-on: self-hosted
+
+    env:
+      DOCKER_CONFIG: ${{ runner.temp }}/docker-config
 
     steps:
       - name: Checkout code
@@ -187,7 +199,9 @@ jobs:
         run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
       - name: Log in to GHCR
-        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
+        run: |
+          mkdir -p "$DOCKER_CONFIG"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
 
       - name: Pull and start the stack
         env:
@@ -219,3 +233,7 @@ jobs:
         with:
           name: deploy-log
           path: deploy.log
+
+      - name: Log out of GHCR
+        if: always()
+        run: rm -rf "$DOCKER_CONFIG"
