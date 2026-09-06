@@ -138,12 +138,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Log in to GHCR
+      - name: Authenticate to GHCR
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "DOCKER_CONFIG=$RUNNER_TEMP/docker-config" >> $GITHUB_ENV
-          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> $GITHUB_ENV
           mkdir -p "$DOCKER_CONFIG"
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
+
+          AUTH=$(printf '%s:%s' "$GHCR_USER" "$GHCR_TOKEN" | base64 | tr -d '\n')
+
+          cat > "$DOCKER_CONFIG/config.json" <<JSON
+          {
+            "auths": {
+              "$REGISTRY": {
+                "auth": "$AUTH"
+              }
+            },
+            "credsStore": ""
+          }
+          JSON
+
+          echo "Wrote credentials for $REGISTRY to a job scoped Docker config"
 
       - name: Set image names
         run: |
@@ -194,12 +211,29 @@ jobs:
       - name: Set image tag
         run: echo "IMAGE_TAG=${{ github.sha }}" >> $GITHUB_ENV
 
-      - name: Log in to GHCR
+      - name: Authenticate to GHCR
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "DOCKER_CONFIG=$RUNNER_TEMP/docker-config" >> $GITHUB_ENV
-          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
+          echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> $GITHUB_ENV
           mkdir -p "$DOCKER_CONFIG"
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
+
+          AUTH=$(printf '%s:%s' "$GHCR_USER" "$GHCR_TOKEN" | base64 | tr -d '\n')
+
+          cat > "$DOCKER_CONFIG/config.json" <<JSON
+          {
+            "auths": {
+              "$REGISTRY": {
+                "auth": "$AUTH"
+              }
+            },
+            "credsStore": ""
+          }
+          JSON
+
+          echo "Wrote credentials for $REGISTRY to a job scoped Docker config"
 
       - name: Pull and start the stack
         env:
