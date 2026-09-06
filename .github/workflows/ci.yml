@@ -147,6 +147,11 @@ jobs:
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> $GITHUB_ENV
           mkdir -p "$DOCKER_CONFIG"
 
+          if [ -d "$HOME/.docker/cli-plugins" ]; then
+            ln -sfn "$HOME/.docker/cli-plugins" "$DOCKER_CONFIG/cli-plugins"
+            echo "Linked CLI plugins from $HOME/.docker/cli-plugins"
+          fi
+
           AUTH=$(printf '%s:%s' "$GHCR_USER" "$GHCR_TOKEN" | base64 | tr -d '\n')
 
           cat > "$DOCKER_CONFIG/config.json" <<JSON
@@ -219,6 +224,11 @@ jobs:
           DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
           echo "DOCKER_CONFIG=$DOCKER_CONFIG" >> $GITHUB_ENV
           mkdir -p "$DOCKER_CONFIG"
+
+          if [ -d "$HOME/.docker/cli-plugins" ]; then
+            ln -sfn "$HOME/.docker/cli-plugins" "$DOCKER_CONFIG/cli-plugins"
+            echo "Linked CLI plugins from $HOME/.docker/cli-plugins"
+          fi
 
           AUTH=$(printf '%s:%s' "$GHCR_USER" "$GHCR_TOKEN" | base64 | tr -d '\n')
 
