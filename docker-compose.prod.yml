@@ -1,7 +1,9 @@
+name: retrovault-prod
+
 services:
   db:
     image: postgres:15
-    container_name: retrovault-db
+    container_name: retrovault-prod-db
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-retro}
@@ -17,7 +19,7 @@ services:
 
   backend:
     image: ghcr.io/${IMAGE_OWNER:-bhrgovic}/retrovault-backend:${IMAGE_TAG:-latest}
-    container_name: retrovault-backend
+    container_name: retrovault-prod-backend
     restart: always
     depends_on:
       db:
@@ -32,7 +34,7 @@ services:
 
   frontend:
     image: ghcr.io/${IMAGE_OWNER:-bhrgovic}/retrovault-frontend:${IMAGE_TAG:-latest}
-    container_name: retrovault-frontend
+    container_name: retrovault-prod-frontend
     restart: always
     depends_on:
       - backend
@@ -41,7 +43,7 @@ services:
 
   prometheus:
     image: prom/prometheus
-    container_name: retrovault-prometheus
+    container_name: retrovault-prod-prometheus
     restart: always
     depends_on:
       - backend
@@ -54,7 +56,7 @@ services:
 
   grafana:
     image: grafana/grafana
-    container_name: retrovault-grafana
+    container_name: retrovault-prod-grafana
     restart: always
     depends_on:
       - prometheus
