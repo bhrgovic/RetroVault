@@ -52,6 +52,21 @@ docker-data/
 *.tar
 
 # --------------------
+# CI artifacts
+# --------------------
+report.xml
+vitest-report.xml
+playwright-report/
+test-results/
+images.txt
+
+# --------------------
+# Self-hosted runner
+# --------------------
+actions-runner/
+_work/
+
+# --------------------
 # OS
 # --------------------
 Thumbs.db

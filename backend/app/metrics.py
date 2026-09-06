@@ -32,3 +32,9 @@ upload_rejections = Counter(
     "Uploads refused by validation, labelled by reason",
     ["reason"],
 )
+
+downloads = Counter(
+    "retrovault_downloads_total",
+    "Files served by the download endpoints, labelled by kind",
+    ["kind"],
+)

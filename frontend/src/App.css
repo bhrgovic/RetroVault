@@ -282,3 +282,55 @@ body {
 .gameCardBody {
   padding: 20px;
 }
+
+/* ================= FILE LISTS ================= */
+
+.fileList {
+  list-style: none;
+  padding-left: 0;
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.fileRow:last-child {
+  border-bottom: none;
+}
+
+.fileName {
+  font-size: 14px;
+  word-break: break-all;
+}
+
+.fileActions {
+  display: flex;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.smallButton {
+  width: auto;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 6px;
+  background: #4e73df;
+  color: white;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.smallButton:hover {
+  background: #2e59d9;
+}
+
+.smallButton.dangerButton {
+  margin-top: 0;
+  background: crimson;
+}
