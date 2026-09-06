@@ -134,15 +134,14 @@ jobs:
       contents: read
       packages: write
 
-    env:
-      DOCKER_CONFIG: ${{ runner.temp }}/docker-config
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Log in to GHCR
         run: |
+          echo "DOCKER_CONFIG=$RUNNER_TEMP/docker-config" >> $GITHUB_ENV
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
           mkdir -p "$DOCKER_CONFIG"
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
 
@@ -180,16 +179,13 @@ jobs:
 
       - name: Log out of GHCR
         if: always()
-        run: rm -rf "$DOCKER_CONFIG"
+        run: rm -rf "${DOCKER_CONFIG:-$RUNNER_TEMP/docker-config}"
 
   deploy:
     name: Deploy to prototype environment
     needs: publish
     if: vars.SELF_HOSTED_RUNNER == 'true'
     runs-on: self-hosted
-
-    env:
-      DOCKER_CONFIG: ${{ runner.temp }}/docker-config
 
     steps:
       - name: Checkout code
@@ -200,6 +196,8 @@ jobs:
 
       - name: Log in to GHCR
         run: |
+          echo "DOCKER_CONFIG=$RUNNER_TEMP/docker-config" >> $GITHUB_ENV
+          export DOCKER_CONFIG="$RUNNER_TEMP/docker-config"
           mkdir -p "$DOCKER_CONFIG"
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login $REGISTRY -u ${{ github.actor }} --password-stdin
 
@@ -236,4 +234,4 @@ jobs:
 
       - name: Log out of GHCR
         if: always()
-        run: rm -rf "$DOCKER_CONFIG"
+        run: rm -rf "${DOCKER_CONFIG:-$RUNNER_TEMP/docker-config}"
