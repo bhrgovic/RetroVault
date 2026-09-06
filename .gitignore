@@ -57,6 +57,8 @@ docker-data/
 # --------------------
 report.xml
 vitest-report.xml
+e2e-report.xml
+stack.log
 playwright-report/
 test-results/
 images.txt
